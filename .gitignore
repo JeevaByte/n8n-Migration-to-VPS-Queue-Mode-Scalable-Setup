@@ -1,0 +1,18 @@
+# Secrets — NEVER commit these
+.env
+
+# TLS certificates
+nginx/certs/*.pem
+nginx/certs/*.key
+nginx/certs/*.crt
+
+# Backup files (may contain sensitive data)
+backups/
+
+# OS / editor artifacts
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
