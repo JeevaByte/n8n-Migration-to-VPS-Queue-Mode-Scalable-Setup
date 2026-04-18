@@ -1,4 +1,4 @@
-# n8n Migration to VPS (Queue Mode, Scalable Setup)
+# n8n Migration to VPS  “Distributed Workflow Processing System”
 
 Production-ready self-hosted n8n deployment for VPS providers (Hetzner, DigitalOcean, etc.) using:
 
