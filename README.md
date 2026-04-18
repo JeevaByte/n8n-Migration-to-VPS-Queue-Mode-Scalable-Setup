@@ -119,3 +119,31 @@ After moving from previous environment:
 5. Monitor logs for retries/timeouts in workers
 
 If all checks pass, the migration is complete and parallel queue execution is active.
+
+---
+
+## 7) Backend API service (FastAPI)
+
+This repository now includes a production-ready backend service in `backend/` with layered architecture:
+
+- `routers/`
+- `services/`
+- `repositories/`
+- `models/`
+- `schemas/`
+
+Endpoints:
+
+- `POST /upload` for receipt/image/pdf upload (stores file locally and saves metadata in PostgreSQL)
+- `GET /documents` to list uploaded files and processing status
+
+Quick start:
+
+```bash
+cd backend
+cp .env.example .env
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```

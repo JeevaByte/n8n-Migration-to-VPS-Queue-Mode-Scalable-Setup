@@ -1,1 +1,15 @@
 .env
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+
+# Backend uploads (keep folder)
+backend/uploads/*
+!backend/uploads/.gitkeep
