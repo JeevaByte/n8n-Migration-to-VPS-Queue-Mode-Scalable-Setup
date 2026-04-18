@@ -14,9 +14,19 @@ class Settings(BaseModel):
     )
 
     storage_type: str = Field(default="local")
-    local_upload_dir: str = Field(default="/app/uploads")
+    local_upload_dir: str = Field(default="./uploads")
 
     max_upload_size_mb: int = Field(default=10)
+
+
+def _get_int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer.") from exc
 
 
 @lru_cache
@@ -30,6 +40,6 @@ def get_settings() -> Settings:
             "postgresql+psycopg2://postgres:postgres@localhost:5432/documents",
         ),
         storage_type=os.getenv("STORAGE_TYPE", "local"),
-        local_upload_dir=os.getenv("LOCAL_UPLOAD_DIR", "/app/uploads"),
-        max_upload_size_mb=int(os.getenv("MAX_UPLOAD_SIZE_MB", "10")),
+        local_upload_dir=os.getenv("LOCAL_UPLOAD_DIR", "./uploads"),
+        max_upload_size_mb=_get_int_env("MAX_UPLOAD_SIZE_MB", 10),
     )

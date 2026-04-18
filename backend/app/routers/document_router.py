@@ -13,13 +13,17 @@ from app.services.storage_service import LocalStorageService
 router = APIRouter(tags=["documents"])
 
 
-def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
+def get_storage_service() -> LocalStorageService:
     settings = get_settings()
-    repository = DocumentRepository(db)
-    storage = LocalStorageService(
+    return LocalStorageService(
         upload_dir=settings.local_upload_dir,
         max_upload_size_mb=settings.max_upload_size_mb,
     )
+
+
+def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
+    repository = DocumentRepository(db)
+    storage = get_storage_service()
     return DocumentService(repository=repository, storage_service=storage)
 
 
