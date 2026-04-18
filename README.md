@@ -103,7 +103,7 @@ Each upload schedules Redis queue publish in the background with a payload:
 ```json
 {
   "document_id": "doc-123",
-  "file_path": "/data/uploads/doc-123_example.pdf"
+  "file_path": "/data/uploads/2f4ec5f0f38c4b7ca3678d41018a6bf3.bin"
 }
 ```
 

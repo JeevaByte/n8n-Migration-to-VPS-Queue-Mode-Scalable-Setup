@@ -1,5 +1,4 @@
 import logging
-import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -35,13 +34,7 @@ publisher = QueuePublisher(
 
 upload_dir = Path(settings.upload_dir)
 upload_dir.mkdir(parents=True, exist_ok=True)
-_ID_SAFE_CHARS = re.compile(r"[^A-Za-z0-9_-]")
 _CHUNK_SIZE = 1024 * 1024
-
-
-def _safe_document_id_for_path(document_id: str) -> str:
-    sanitized = _ID_SAFE_CHARS.sub("_", document_id).strip("_")
-    return sanitized[:64] or uuid4().hex
 
 
 def _publish_in_background(document_id: str, file_path: str) -> None:
@@ -74,8 +67,7 @@ async def upload_file(
     document_id: str | None = Form(default=None),
 ) -> dict[str, str]:
     resolved_document_id = document_id or str(uuid4())
-    safe_doc_id = _safe_document_id_for_path(resolved_document_id)
-    stored_name = f"{safe_doc_id}_{uuid4().hex}.bin"
+    stored_name = f"{uuid4().hex}.bin"
     root_dir = upload_dir.resolve()
     destination = (root_dir / stored_name).resolve()
     if not destination.is_relative_to(root_dir):
