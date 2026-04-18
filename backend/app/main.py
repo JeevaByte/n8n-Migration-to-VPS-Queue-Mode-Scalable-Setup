@@ -4,6 +4,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import JSONResponse
+from redis.exceptions import RedisError
 from redis import Redis
 
 from app.config import settings
@@ -33,15 +35,8 @@ publisher = QueuePublisher(
 
 upload_dir = Path(settings.upload_dir)
 upload_dir.mkdir(parents=True, exist_ok=True)
-_FILENAME_SAFE_CHARS = re.compile(r"[^A-Za-z0-9._-]")
 _ID_SAFE_CHARS = re.compile(r"[^A-Za-z0-9_-]")
 _CHUNK_SIZE = 1024 * 1024
-
-
-def _sanitize_filename(name: str) -> str:
-    base_name = Path(name or "upload.bin").name
-    sanitized = _FILENAME_SAFE_CHARS.sub("_", base_name)
-    return sanitized or "upload.bin"
 
 
 def _safe_document_id_for_path(document_id: str) -> str:
@@ -65,7 +60,10 @@ def _publish_in_background(document_id: str, file_path: str) -> None:
 
 @app.get("/healthz")
 async def healthz() -> dict[str, str]:
-    redis_client.ping()
+    try:
+        redis_client.ping()
+    except RedisError:
+        return JSONResponse(status_code=503, content={"status": "unhealthy"})
     return {"status": "ok"}
 
 
@@ -77,8 +75,7 @@ async def upload_file(
 ) -> dict[str, str]:
     resolved_document_id = document_id or str(uuid4())
     safe_doc_id = _safe_document_id_for_path(resolved_document_id)
-    file_extension = Path(_sanitize_filename(file.filename or "upload.bin")).suffix or ".bin"
-    stored_name = f"{safe_doc_id}_{uuid4().hex}{file_extension}"
+    stored_name = f"{safe_doc_id}_{uuid4().hex}.bin"
     root_dir = upload_dir.resolve()
     destination = (root_dir / stored_name).resolve()
     if not destination.is_relative_to(root_dir):
