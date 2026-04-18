@@ -18,8 +18,13 @@ branch_labels = None
 depends_on = None
 
 
-document_status = sa.Enum(
-    "uploaded", "processing", "completed", "failed", name="document_status"
+document_status = postgresql.ENUM(
+    "uploaded",
+    "processing",
+    "completed",
+    "failed",
+    name="document_status",
+    create_type=False,
 )
 
 
