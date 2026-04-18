@@ -1,4 +1,25 @@
 services:
+  backend-api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - BACKEND_REDIS_HOST=${BACKEND_REDIS_HOST}
+      - BACKEND_REDIS_PORT=${BACKEND_REDIS_PORT}
+      - BACKEND_QUEUE_NAME=${BACKEND_QUEUE_NAME}
+      - BACKEND_UPLOAD_DIR=${BACKEND_UPLOAD_DIR}
+      - BACKEND_MAX_UPLOAD_SIZE_BYTES=${BACKEND_MAX_UPLOAD_SIZE_BYTES}
+      - BACKEND_PUBLISH_MAX_RETRIES=${BACKEND_PUBLISH_MAX_RETRIES}
+      - BACKEND_PUBLISH_RETRY_BACKOFF_SECONDS=${BACKEND_PUBLISH_RETRY_BACKOFF_SECONDS}
+      - BACKEND_QUEUE_DEDUPE_TTL_SECONDS=${BACKEND_QUEUE_DEDUPE_TTL_SECONDS}
+    ports:
+      - "${BACKEND_API_PORT:-8000}:8000"
+    volumes:
+      - backend_uploads:${BACKEND_UPLOAD_DIR:-/data/uploads}
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -88,6 +109,7 @@ services:
       - n8n_data:/home/node/.n8n
 
 volumes:
+  backend_uploads:
   postgres_data:
   redis_data:
   n8n_data:
