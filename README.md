@@ -52,6 +52,7 @@ Edit `.env` and set secure values (especially DB and encryption key):
 
 - `POSTGRES_PASSWORD`
 - `N8N_ENCRYPTION_KEY` (32+ random chars)
+- `N8N_VERSION` (pin and upgrade intentionally)
 - `N8N_HOST`, `WEBHOOK_URL`, and `N8N_EDITOR_BASE_URL` with your final HTTPS domain
 
 Start services:
