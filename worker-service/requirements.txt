@@ -1,0 +1,4 @@
+redis==5.2.1
+psycopg==3.2.3
+pytesseract==0.3.13
+Pillow==12.2.0

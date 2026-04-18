@@ -87,6 +87,33 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
 
+  document-worker:
+    build:
+      context: ./worker-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_QUEUE_NAME=${REDIS_QUEUE_NAME}
+      - REDIS_FAILED_QUEUE_NAME=${REDIS_FAILED_QUEUE_NAME}
+      - REDIS_POLL_TIMEOUT_SECONDS=${REDIS_POLL_TIMEOUT_SECONDS}
+      - WORKER_MAX_RETRIES=${WORKER_MAX_RETRIES}
+      - WORKER_RETRY_BACKOFF_SECONDS=${WORKER_RETRY_BACKOFF_SECONDS}
+      - SUMMARY_WORD_LIMIT=${SUMMARY_WORD_LIMIT}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - LOG_LEVEL=${WORKER_LOG_LEVEL}
+    volumes:
+      - ./data/documents:/data/documents
+
 volumes:
   postgres_data:
   redis_data:

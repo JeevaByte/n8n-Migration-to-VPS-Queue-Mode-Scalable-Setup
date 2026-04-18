@@ -6,6 +6,7 @@ Production-ready self-hosted n8n deployment for VPS providers (Hetzner, DigitalO
 - Redis for queue handling
 - PostgreSQL as shared database
 - One main n8n instance + horizontally scalable worker instances
+- A separate Python worker for document OCR + structuring pipeline
 
 ---
 
@@ -67,6 +68,12 @@ Scale workers for parallel execution:
 docker compose up -d --scale n8n-worker=3
 ```
 
+The Python document worker is also started by Compose and listens to a Redis queue for messages in this format:
+
+```json
+{"document_id":"doc-001","file_path":"/data/documents/invoice-001.txt"}
+```
+
 ---
 
 ## 3) Verify setup and queue processing
@@ -77,9 +84,25 @@ Check service health:
 docker compose ps
 docker compose logs -f n8n-main
 docker compose logs -f n8n-worker
+docker compose logs -f document-worker
 ```
 
 Queue mode confirmation in logs should include queue-based execution startup and workers polling jobs.
+
+For document worker testing, publish a message to Redis:
+
+```bash
+docker compose exec redis redis-cli LPUSH document_processing_queue '{"document_id":"doc-001","file_path":"/data/documents/invoice-001.txt"}'
+```
+
+Document processing flow:
+
+1. Read message (`document_id`, `file_path`) from Redis queue
+2. Update PostgreSQL status to `processing`
+3. Perform OCR (Tesseract if available, otherwise placeholder extraction)
+4. Convert raw text into structured JSON (LLM simulation)
+5. Store raw + structured data in PostgreSQL and mark `completed`
+6. On error, mark `failed` and retry until max retries, then move to failed queue
 
 ---
 
