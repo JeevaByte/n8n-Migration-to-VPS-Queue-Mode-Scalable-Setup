@@ -1,67 +1,141 @@
-# n8n Migration to VPS (Queue Mode, “Distributed Workflow Processing System”
+# 🚀 Distributed Workflow Processing System (n8n Queue Mode + AI Backend)
 
-Production-ready self-hosted n8n deployment for VPS providers (Hetzner, DigitalOcean, etc.) using:
+Production-ready backend system for **distributed workflow processing and AI-powered document handling**, built on:
 
-- n8n queue mode (**required**)
-- Redis for queue handling
-- PostgreSQL as shared database
-- One main n8n instance + horizontally scalable worker instances
+* n8n (queue mode)
+* Redis (message broker)
+* PostgreSQL (persistent storage)
+* Scalable worker architecture
+
+Designed for:
+
+* High-throughput workflow execution
+* Asynchronous processing
+* AI/LLM-based document pipelines
+* Production deployment on VPS (Hetzner, DigitalOcean, etc.)
 
 ---
 
-## 1) VPS prerequisites
+# 🧠 System Overview
 
-Recommended baseline:
+This project is not just an n8n setup.
 
-- 4 vCPU / 8 GB RAM minimum
-- Ubuntu 22.04+
-- Static public IP and DNS record (for example: `n8n.example.com`)
+It represents a **distributed backend architecture**:
 
-Initial hardening:
+User / API
+→ Queue (Redis)
+→ Worker Processing (n8n / Python workers)
+→ PostgreSQL (structured storage)
+
+---
+
+# 🏗️ Architecture
+
+![Image](https://images.openai.com/static-rsc-4/_D_DkGbO1rSb_-VyH--K-_5C8W7q1c07qaLfom8PdomPO5B0pV_i8EZfqAlCAZfAR9Hi6-YFArzEFLeEGXRG4-B4a_dAdXKJvACj7sT3Rfya2Pziv3DPDC0mJsYjNZIELTcL04ZpTxAdlquOOVwFLdP1V4sHkohNoxcYXFqQt9PVQ180jLIASdxYP6a3pvhE?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/5IAnVZrepnDjGwBrNpnLSe7n037w15AQNVYbpSNXWBS30nTUG7opcA5PRhpLBJEHtAMmkTAp7-9XFyT7aesCFXAh5rooQFs8pNIz_JdJ-9Xbsiak95MWRvdhos0Xqy5UZX53_mjnxAHTlHiYpOyuzuuPwCQqVnDl76FZu7IUFY3jPHUo8EbliWHbAgtp-wro?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/kLGDZCwn44N3wdJXLaTNyoLaBNhkbH63Xb41YcIyBnHWWz4QzFrKFoMuNXKesN0fOn5OHsJfgpqd49OaGvLaAPwRJoldbOx20MTgzxubBruhTADEGGEj9pg9QxlQVyakO9bxZorpBZNXvVkug5TkN9tJGyhgJOe91UGCjd-OdPn_Xt-mhnaAlv9pcnVL2QdH?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/B9LXvsW4DMIhpQwQoFxvCB7m6GDzTBGRKg-pMWxliEx1XcmY5QfdD2nAO6UC-7qFCEwotunjlvIZLp_bfro7NxlzW1yZc4jykhDzo_XR1_vgogNlmukxHnHt0qnretKgQdk29c4Ug3N4fxpbbco2wVmJLP095cNFepDjtc4vlQw8h9yCDDK-4M6TmodAf0jk?purpose=fullsize)
+
+![Image](https://images.openai.com/static-rsc-4/OBp4XpFRAU6jfrWH6kj2nrrmE5i5NiRZESxz-yWwIpr8xPEhiy1E9IowKkcIHCwfTEBIb520OqJzqf_mdtcEtEeG-TBI001zz8KY5s3YUKMXLX5Gk-9tuXtsCWawPobEANcqG_jdcY0p1LJ37HjEyxn4__kiXwOidZPviKVJgddtGbX8WKaByW0Av4K4kxmN?purpose=fullsize)
+
+### Components
+
+* **n8n Main Instance**
+
+  * UI + workflow orchestration
+  * Pushes jobs to queue
+
+* **n8n Workers**
+
+  * Execute workflows in parallel
+  * Horizontally scalable
+
+* **Redis**
+
+  * Message queue for job distribution
+
+* **PostgreSQL**
+
+  * Stores workflow state + document data
+
+---
+
+# ⚙️ Features
+
+* Queue-based execution (high scalability)
+* Horizontal worker scaling
+* Fault-tolerant processing
+* Document processing schema (OCR + AI-ready)
+* Production-ready Docker deployment
+
+---
+
+# 🖥️ VPS Prerequisites
+
+### Recommended
+
+* 4 vCPU / 8 GB RAM minimum
+* Ubuntu 22.04+
+* Static IP + domain (e.g. `n8n.example.com`)
+
+### Server Hardening
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y ufw fail2ban ca-certificates curl gnupg
+
 sudo ufw allow OpenSSH
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw --force enable
 ```
 
-Install Docker Engine + Compose plugin:
+---
+
+# 🐳 Install Docker
 
 ```bash
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker "$USER"
 newgrp docker
+
 docker --version
 docker compose version
 ```
 
 ---
 
-## 2) Deploy n8n in queue mode
+# 🚀 Deployment (Queue Mode)
 
 ```bash
-git clone <this-repo-url>
+git clone <repo-url>
 cd n8n-Migration-to-VPS-Queue-Mode-Scalable-Setup
+
 cp .env.example .env
 ```
 
-Edit `.env` and set secure values (especially DB and encryption key):
+### Configure `.env`
 
-- `POSTGRES_PASSWORD`
-- `N8N_ENCRYPTION_KEY` (32+ random chars)
-- `N8N_VERSION` (pin and upgrade intentionally)
-- `N8N_HOST`, `WEBHOOK_URL`, and `N8N_EDITOR_BASE_URL` with your final HTTPS domain
+Set secure values:
 
-Start services:
+* `POSTGRES_PASSWORD`
+* `N8N_ENCRYPTION_KEY` (32+ chars)
+* `N8N_HOST`
+* `WEBHOOK_URL`
+* `N8N_EDITOR_BASE_URL`
+
+---
+
+### Start Services
 
 ```bash
 docker compose up -d
 ```
 
-Scale workers for parallel execution:
+### Scale Workers
 
 ```bash
 docker compose up -d --scale n8n-worker=3
@@ -69,9 +143,7 @@ docker compose up -d --scale n8n-worker=3
 
 ---
 
-## 3) Verify setup and queue processing
-
-Check service health:
+# ✅ Verification
 
 ```bash
 docker compose ps
@@ -79,82 +151,122 @@ docker compose logs -f n8n-main
 docker compose logs -f n8n-worker
 ```
 
-Queue mode confirmation in logs should include queue-based execution startup and workers polling jobs.
+Ensure:
+
+* Workers are polling jobs
+* Queue mode is active
 
 ---
 
-## 4) Webhook URL migration checklist
+# 🔁 Migration Checklist
 
-After moving from previous environment:
+* Update:
 
-1. Set `WEBHOOK_URL=https://<your-domain>/`
-2. Set `N8N_EDITOR_BASE_URL=https://<your-domain>/`
-3. Keep `N8N_HOST` aligned with the same domain
-4. Restart:
-   ```bash
-   docker compose up -d --force-recreate
-   ```
-5. Re-activate workflows with webhooks (or re-save) if needed
-6. Trigger a test webhook and confirm the execution appears in n8n UI
+  * `WEBHOOK_URL`
+  * `N8N_EDITOR_BASE_URL`
+  * `N8N_HOST`
 
----
+```bash
+docker compose up -d --force-recreate
+```
 
-## 5) Performance and stability recommendations
-
-- Keep `EXECUTIONS_MODE=queue` on all n8n services
-- Increase workers based on CPU/RAM (`--scale n8n-worker=<N>`)
-- Use `N8N_CONCURRENCY_PRODUCTION_LIMIT` to cap per-worker concurrency
-- Keep Redis/PostgreSQL volumes persisted
-- Enable backups for PostgreSQL and n8n data volume
-- Place n8n behind HTTPS reverse proxy (Caddy/Nginx/Traefik) in production
+* Re-activate workflows if needed
+* Trigger test webhook
 
 ---
 
-## 6) Validate all workflows post-migration
+# ⚡ Performance & Scaling
 
-1. Run a representative set of active workflows (cron, webhook, and API-triggered)
-2. Confirm successful and failed executions are visible
-3. Verify credentials and external callbacks still work from new VPS IP
-4. Check queue latency under parallel load by running multiple test triggers
-5. Monitor logs for retries/timeouts in workers
-
-If all checks pass, the migration is complete and parallel queue execution is active.
+* Keep `EXECUTIONS_MODE=queue`
+* Scale workers based on load
+* Use `N8N_CONCURRENCY_PRODUCTION_LIMIT`
+* Persist Redis & PostgreSQL volumes
+* Use reverse proxy (Nginx / Traefik / Caddy)
 
 ---
 
-## 7) Document processing schema (SQLAlchemy + Alembic)
+# 🧩 Document Processing Schema
 
-This repository now includes a PostgreSQL-ready schema for a document processing subsystem:
+This repo includes a backend-ready schema for **AI document processing pipelines**.
 
-- `documents` table:
-  - core: `id`, `file_path`, `status`, `created_at`, `updated_at`
-  - processing timeline: `processing_started_at`, `processing_completed_at`, `processing_failed_at`
-  - diagnostics/storage: `error_message`, `error_details` (JSONB), `ocr_output` (JSONB)
-- `transactions` table: `id`, `document_id` (FK), `vendor`, `amount`, `date`, `category`, `metadata` (JSONB)
+## Tables
 
-`updated_at` is automatically refreshed on `documents` row updates (ORM `onupdate` + PostgreSQL trigger), and `transactions.amount` is constrained to non-negative values.
+### documents
 
-Implemented with:
+* file_path, status
+* processing timestamps
+* error tracking
+* OCR output (JSONB)
 
-- SQLAlchemy models in `document_processing/models.py`
-- Alembic config in `alembic.ini` + `alembic/`
-- Initial migration in `alembic/versions/20260418_0001_create_document_processing_schema.py`
+### transactions
 
-### Run migrations
+* extracted financial data
+* linked to documents
+* metadata for flexibility
+
+---
+
+## Key Features
+
+* Automatic `updated_at` via DB trigger
+* Processing lifecycle tracking
+* JSONB storage for OCR + AI outputs
+* Data integrity constraints (`amount >= 0`)
+
+---
+
+## Run Migrations
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Optional override if not using alembic.ini default URL
 export DATABASE_URL="postgresql+psycopg://<user>:<password>@<host>:5432/<db>"
 
 alembic upgrade head
 ```
 
-### Indexes included
+---
 
-- `documents`: `status`, `created_at`
-- `documents`: `updated_at`, `processing_started_at`, `processing_completed_at`
-- `transactions`: `document_id`, `vendor`, `date`, `category`, `(document_id, date)`
+# 📊 Observability (Recommended)
+
+* Monitor worker logs
+* Track queue latency
+* Add Prometheus/Grafana (optional)
+
+---
+
+# 🧪 Validation Checklist
+
+* Workflows execute successfully
+* Queue processes jobs in parallel
+* Logs show no retries/errors
+* External integrations work
+* Performance stable under load
+
+---
+
+# 🎯 Roadmap
+
+* FastAPI backend integration
+* AI/LLM document parsing
+* OCR pipeline automation
+* Kubernetes deployment (EKS/GKE)
+
+---
+
+# 🧠 Why This Matters
+
+This project demonstrates:
+
+* Distributed system design
+* Queue-based architecture
+* Backend + infrastructure integration
+* Production-ready DevOps practices
+
+---
+
+# 📌 License
+
+MIT
