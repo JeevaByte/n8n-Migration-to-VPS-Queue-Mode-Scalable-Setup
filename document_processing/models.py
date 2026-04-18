@@ -73,6 +73,7 @@ class Document(Base):
     transactions: Mapped[list["Transaction"]] = relationship(
         back_populates="document",
         cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 
