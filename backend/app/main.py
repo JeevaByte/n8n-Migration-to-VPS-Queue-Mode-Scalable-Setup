@@ -34,6 +34,7 @@ publisher = QueuePublisher(
 upload_dir = Path(settings.upload_dir)
 upload_dir.mkdir(parents=True, exist_ok=True)
 _FILENAME_SAFE_CHARS = re.compile(r"[^A-Za-z0-9._-]")
+_ID_SAFE_CHARS = re.compile(r"[^A-Za-z0-9_-]")
 _CHUNK_SIZE = 1024 * 1024
 
 
@@ -41,6 +42,11 @@ def _sanitize_filename(name: str) -> str:
     base_name = Path(name or "upload.bin").name
     sanitized = _FILENAME_SAFE_CHARS.sub("_", base_name)
     return sanitized or "upload.bin"
+
+
+def _safe_document_id_for_path(document_id: str) -> str:
+    sanitized = _ID_SAFE_CHARS.sub("_", document_id).strip("_")
+    return sanitized[:64] or uuid4().hex
 
 
 def _publish_in_background(document_id: str, file_path: str) -> None:
@@ -59,6 +65,7 @@ def _publish_in_background(document_id: str, file_path: str) -> None:
 
 @app.get("/healthz")
 async def healthz() -> dict[str, str]:
+    redis_client.ping()
     return {"status": "ok"}
 
 
@@ -69,10 +76,12 @@ async def upload_file(
     document_id: str | None = Form(default=None),
 ) -> dict[str, str]:
     resolved_document_id = document_id or str(uuid4())
-    original_name = _sanitize_filename(file.filename or "upload.bin")
-    stored_name = f"{resolved_document_id}_{original_name}"
-    destination = (upload_dir / stored_name).resolve()
-    if upload_dir.resolve() not in destination.parents:
+    safe_doc_id = _safe_document_id_for_path(resolved_document_id)
+    file_extension = Path(_sanitize_filename(file.filename or "upload.bin")).suffix or ".bin"
+    stored_name = f"{safe_doc_id}_{uuid4().hex}{file_extension}"
+    root_dir = upload_dir.resolve()
+    destination = (root_dir / stored_name).resolve()
+    if not destination.is_relative_to(root_dir):
         raise HTTPException(status_code=400, detail="Invalid destination path")
 
     size_bytes = 0
