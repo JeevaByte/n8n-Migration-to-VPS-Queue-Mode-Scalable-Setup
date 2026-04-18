@@ -1,0 +1,92 @@
+{
+  "name": "Process Document",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "jobId",
+              "value": "doc-{{$now.toISO()}}"
+            },
+            {
+              "name": "fileName",
+              "value": "invoice.pdf"
+            },
+            {
+              "name": "status",
+              "value": "queued"
+            }
+          ],
+          "number": [
+            {
+              "name": "sizeBytes",
+              "value": 102400
+            }
+          ]
+        }
+      },
+      "id": "set-document-input",
+      "name": "Set Document Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fileName = $json.fileName || '';\nconst extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : 'unknown';\n\nreturn [{\n  json: {\n    ...$json,\n    processedAt: new Date().toISOString(),\n    status: 'processed',\n    mimeType: extension === 'pdf' ? 'application/pdf' : 'application/octet-stream',\n    isLargeDocument: Number($json.sizeBytes || 0) > 5_000_000\n  }\n}];"
+      },
+      "id": "code-process-document",
+      "name": "Process Document Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Document Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Document Input": {
+      "main": [
+        [
+          {
+            "node": "Process Document Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

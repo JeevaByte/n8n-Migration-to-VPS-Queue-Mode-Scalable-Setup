@@ -1,0 +1,104 @@
+{
+  "name": "Queue Event Trigger",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "queue-event",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-queue-event",
+      "name": "Queue Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "queue-event-trigger"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "jobId",
+              "value": "={{ $json.body.jobId || $json.jobId || '' }}"
+            },
+            {
+              "name": "eventType",
+              "value": "={{ $json.body.eventType || $json.eventType || 'document.received' }}"
+            }
+          ],
+          "boolean": [
+            {
+              "name": "useExternalApi",
+              "value": "={{ $json.body.useExternalApi || false }}"
+            }
+          ],
+          "object": [
+            {
+              "name": "document",
+              "value": "={{ $json.body.document || $json.document || {} }}"
+            }
+          ]
+        }
+      },
+      "id": "set-normalize-event",
+      "name": "Normalize Queue Event",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"accepted\",\n  \"jobId\": \"{{ $json.jobId }}\",\n  \"eventType\": \"{{ $json.eventType }}\"\n}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "respond-accepted",
+      "name": "Respond Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        780,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Queue Event": {
+      "main": [
+        [
+          {
+            "node": "Normalize Queue Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Queue Event": {
+      "main": [
+        [
+          {
+            "node": "Respond Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
