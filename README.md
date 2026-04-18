@@ -6,6 +6,7 @@ Production-ready self-hosted n8n deployment for VPS providers (Hetzner, DigitalO
 - Redis for queue handling
 - PostgreSQL as shared database
 - One main n8n instance + horizontally scalable worker instances
+- Python backend upload API that publishes file-upload events to Redis queue
 
 ---
 
@@ -67,6 +68,8 @@ Scale workers for parallel execution:
 docker compose up -d --scale n8n-worker=3
 ```
 
+Backend upload API is exposed on `http://<server>:8000` by default (configurable via `BACKEND_API_PORT`).
+
 ---
 
 ## 3) Verify setup and queue processing
@@ -80,6 +83,31 @@ docker compose logs -f n8n-worker
 ```
 
 Queue mode confirmation in logs should include queue-based execution startup and workers polling jobs.
+
+Verify backend API:
+
+```bash
+curl -s http://localhost:8000/healthz
+```
+
+Upload a file and enqueue event (non-blocking, returns immediately):
+
+```bash
+curl -X POST http://localhost:8000/upload \
+  -F "file=@/path/to/example.pdf" \
+  -F "document_id=doc-123"
+```
+
+Each upload schedules Redis queue publish in the background with a payload:
+
+```json
+{
+  "document_id": "doc-123",
+  "file_path": "/data/uploads/doc-123_example.pdf"
+}
+```
+
+Queue publishing is retry-safe: duplicate retry attempts for the same `document_id + file_path` are deduplicated for `BACKEND_QUEUE_DEDUPE_TTL_SECONDS`.
 
 ---
 
