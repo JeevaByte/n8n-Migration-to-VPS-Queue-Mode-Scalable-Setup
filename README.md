@@ -126,8 +126,11 @@ If all checks pass, the migration is complete and parallel queue execution is ac
 
 This repository now includes a PostgreSQL-ready schema for a document processing subsystem:
 
-- `documents` table: `id`, `file_path`, `status`, `created_at`
-- `transactions` table: `id`, `document_id` (FK), `vendor`, `amount`, `date`, `category`
+- `documents` table:
+  - core: `id`, `file_path`, `status`, `created_at`, `updated_at`
+  - processing timeline: `processing_started_at`, `processing_completed_at`, `processing_failed_at`
+  - diagnostics/storage: `error_message`, `error_details` (JSONB), `ocr_output` (JSONB)
+- `transactions` table: `id`, `document_id` (FK), `vendor`, `amount`, `date`, `category`, `metadata` (JSONB)
 
 Implemented with:
 
@@ -151,4 +154,5 @@ alembic upgrade head
 ### Indexes included
 
 - `documents`: `status`, `created_at`
+- `documents`: `updated_at`, `processing_started_at`, `processing_completed_at`
 - `transactions`: `document_id`, `vendor`, `date`, `category`, `(document_id, date)`

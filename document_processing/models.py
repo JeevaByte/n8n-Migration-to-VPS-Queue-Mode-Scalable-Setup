@@ -6,7 +6,8 @@ import enum
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Index, Numeric, String, func
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Index, Numeric, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -30,6 +31,9 @@ class Document(Base):
     __table_args__ = (
         Index("ix_documents_status", "status"),
         Index("ix_documents_created_at", "created_at"),
+        Index("ix_documents_updated_at", "updated_at"),
+        Index("ix_documents_processing_started_at", "processing_started_at"),
+        Index("ix_documents_processing_completed_at", "processing_completed_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -43,6 +47,17 @@ class Document(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    processing_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    processing_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    ocr_output: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     transactions: Mapped[list["Transaction"]] = relationship(
         back_populates="document",
@@ -70,6 +85,6 @@ class Transaction(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
     category: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    transaction_metadata: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
 
     document: Mapped[Document] = relationship(back_populates="transactions")
-

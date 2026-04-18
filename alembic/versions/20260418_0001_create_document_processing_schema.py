@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "20260418_0001"
@@ -37,9 +38,31 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column("processing_started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("processing_completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("processing_failed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column("error_details", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("ocr_output", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     )
     op.create_index("ix_documents_status", "documents", ["status"], unique=False)
     op.create_index("ix_documents_created_at", "documents", ["created_at"], unique=False)
+    op.create_index("ix_documents_updated_at", "documents", ["updated_at"], unique=False)
+    op.create_index(
+        "ix_documents_processing_started_at", "documents", ["processing_started_at"], unique=False
+    )
+    op.create_index(
+        "ix_documents_processing_completed_at",
+        "documents",
+        ["processing_completed_at"],
+        unique=False,
+    )
 
     op.create_table(
         "transactions",
@@ -49,6 +72,7 @@ def upgrade() -> None:
         sa.Column("amount", sa.Numeric(precision=12, scale=2), nullable=False),
         sa.Column("date", sa.Date(), nullable=False),
         sa.Column("category", sa.String(length=120), nullable=True),
+        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
     )
     op.create_index("ix_transactions_document_id", "transactions", ["document_id"], unique=False)
@@ -73,8 +97,10 @@ def downgrade() -> None:
 
     op.drop_index("ix_documents_created_at", table_name="documents")
     op.drop_index("ix_documents_status", table_name="documents")
+    op.drop_index("ix_documents_processing_completed_at", table_name="documents")
+    op.drop_index("ix_documents_processing_started_at", table_name="documents")
+    op.drop_index("ix_documents_updated_at", table_name="documents")
     op.drop_table("documents")
 
     bind = op.get_bind()
     document_status.drop(bind, checkfirst=True)
-
