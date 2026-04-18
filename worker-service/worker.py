@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
-from psycopg.rows import dict_row
 from redis import Redis
 
 
@@ -19,17 +18,35 @@ logging.basicConfig(
 logger = logging.getLogger("document-worker")
 
 
+def env_int(name: str, default: str) -> int:
+    raw = os.getenv(name, default)
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(f"Invalid integer value for {name}: {raw}") from exc
+
+
+def env_float(name: str, default: str) -> float:
+    raw = os.getenv(name, default)
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ValueError(f"Invalid float value for {name}: {raw}") from exc
+
+
 @dataclass
 class Config:
     redis_host: str = os.getenv("REDIS_HOST", "redis")
-    redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
+    redis_port: int = env_int("REDIS_PORT", "6379")
     redis_queue_name: str = os.getenv("REDIS_QUEUE_NAME", "document_processing_queue")
     redis_failed_queue_name: str = os.getenv("REDIS_FAILED_QUEUE_NAME", "document_processing_failed")
-    max_retries: int = int(os.getenv("WORKER_MAX_RETRIES", "3"))
-    retry_backoff_seconds: float = float(os.getenv("WORKER_RETRY_BACKOFF_SECONDS", "2"))
+    redis_poll_timeout_seconds: int = env_int("REDIS_POLL_TIMEOUT_SECONDS", "5")
+    max_retries: int = env_int("WORKER_MAX_RETRIES", "3")
+    retry_backoff_seconds: float = env_float("WORKER_RETRY_BACKOFF_SECONDS", "2")
+    summary_word_limit: int = env_int("SUMMARY_WORD_LIMIT", "30")
 
     postgres_host: str = os.getenv("POSTGRES_HOST", "postgres")
-    postgres_port: int = int(os.getenv("POSTGRES_PORT", "5432"))
+    postgres_port: int = env_int("POSTGRES_PORT", "5432")
     postgres_db: str = os.getenv("POSTGRES_DB", "n8n")
     postgres_user: str = os.getenv("POSTGRES_USER", "n8n")
     postgres_password: str = os.getenv("POSTGRES_PASSWORD", "")
@@ -120,7 +137,9 @@ def perform_ocr(file_path: str) -> str:
 
     suffix = path.suffix.lower()
     if suffix in {".txt", ".md", ".csv", ".json"}:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_bytes().decode("utf-8", errors="replace")
+        if "\ufffd" in text:
+            logger.warning("Invalid UTF-8 bytes were replaced while reading %s", file_path)
         logger.info("OCR placeholder read text file for %s", file_path)
         return text
 
@@ -147,7 +166,7 @@ def convert_text_to_structured_json(raw_text: str) -> dict[str, Any]:
     words = raw_text.split()
 
     structured = {
-        "summary": " ".join(words[:30]),
+        "summary": " ".join(words[: CONFIG.summary_word_limit]),
         "line_count": len(lines),
         "word_count": len(words),
         "extracted_at": datetime.now(timezone.utc).isoformat(),
@@ -188,10 +207,24 @@ def process_message(payload: dict[str, Any], conn: psycopg.Connection) -> None:
 def validate_payload(payload: dict[str, Any]) -> None:
     if "document_id" not in payload or "file_path" not in payload:
         raise ValueError("Message must contain document_id and file_path")
+    payload.setdefault("retries", 0)
+
+
+def parse_retry_count(payload: dict[str, Any]) -> int:
+    try:
+        return max(0, int(payload.get("retries", 0)))
+    except (TypeError, ValueError):
+        return 0
 
 
 def consume_forever() -> None:
-    redis_client = Redis(host=CONFIG.redis_host, port=CONFIG.redis_port, decode_responses=True)
+    redis_client = Redis(
+        host=CONFIG.redis_host,
+        port=CONFIG.redis_port,
+        decode_responses=True,
+        retry_on_timeout=True,
+        health_check_interval=30,
+    )
     ensure_schema()
 
     logger.info(
@@ -200,62 +233,70 @@ def consume_forever() -> None:
         CONFIG.redis_failed_queue_name,
     )
 
-    with psycopg.connect(postgres_dsn(), row_factory=dict_row) as conn:
-        while True:
-            logger.info("Waiting for queue message")
-            queue_result = redis_client.brpop(CONFIG.redis_queue_name, timeout=5)
-            if not queue_result:
-                continue
+    while True:
+        logger.info("Waiting for queue message")
+        queue_result = redis_client.brpop(
+            CONFIG.redis_queue_name, timeout=CONFIG.redis_poll_timeout_seconds
+        )
+        if not queue_result:
+            continue
 
-            _, raw_message = queue_result
-            logger.info("Message received from Redis queue")
+        _, raw_message = queue_result
+        logger.info("Message received from Redis queue")
+
+        try:
+            payload = json.loads(raw_message)
+            if not isinstance(payload, dict):
+                raise ValueError("Message payload must be a JSON object")
+            validate_payload(payload)
+        except Exception as exc:
+            logger.exception("Invalid queue message, sending to failed queue: %s", exc)
+            redis_client.lpush(
+                CONFIG.redis_failed_queue_name,
+                json.dumps({"message": raw_message, "error": f"invalid payload: {exc}"}),
+            )
+            continue
+
+        retries = parse_retry_count(payload)
+
+        try:
+            with psycopg.connect(postgres_dsn()) as conn:
+                process_message(payload, conn)
+        except Exception as exc:
+            logger.exception("Processing failed for document_id=%s", payload.get("document_id"))
 
             try:
-                payload = json.loads(raw_message)
-                if not isinstance(payload, dict):
-                    raise ValueError("Message payload must be a JSON object")
-                validate_payload(payload)
-            except Exception as exc:
-                logger.exception("Invalid queue message, sending to failed queue: %s", exc)
+                with psycopg.connect(postgres_dsn()) as conn:
+                    document_id = str(payload.get("document_id", "unknown"))
+                    file_path = str(payload.get("file_path", ""))
+                    update_document_status(
+                        conn,
+                        document_id,
+                        file_path,
+                        "failed",
+                        error_message=str(exc),
+                    )
+                    conn.commit()
+            except Exception as status_exc:
+                logger.exception("Failed to persist failure status: %s", status_exc)
+
+            if retries < CONFIG.max_retries:
+                payload["retries"] = retries + 1
+                backoff_seconds = CONFIG.retry_backoff_seconds * (2**retries)
+                logger.info(
+                    "Requeueing message for retry attempt %s/%s after %.2f seconds",
+                    payload["retries"],
+                    CONFIG.max_retries,
+                    backoff_seconds,
+                )
+                time.sleep(backoff_seconds)
+                redis_client.lpush(CONFIG.redis_queue_name, json.dumps(payload))
+            else:
+                logger.error("Max retries exceeded; moving message to failed queue")
                 redis_client.lpush(
                     CONFIG.redis_failed_queue_name,
-                    json.dumps({"message": raw_message, "error": f"invalid payload: {exc}"}),
+                    json.dumps({"message": payload, "error": str(exc)}),
                 )
-                continue
-
-            retries = int(payload.get("retries", 0))
-
-            try:
-                process_message(payload, conn)
-            except Exception as exc:
-                logger.exception("Processing failed for document_id=%s", payload.get("document_id"))
-
-                document_id = str(payload.get("document_id", "unknown"))
-                file_path = str(payload.get("file_path", ""))
-                update_document_status(
-                    conn,
-                    document_id,
-                    file_path,
-                    "failed",
-                    error_message=str(exc),
-                )
-                conn.commit()
-
-                if retries < CONFIG.max_retries:
-                    payload["retries"] = retries + 1
-                    logger.info(
-                        "Requeueing message for retry attempt %s/%s",
-                        payload["retries"],
-                        CONFIG.max_retries,
-                    )
-                    time.sleep(CONFIG.retry_backoff_seconds)
-                    redis_client.lpush(CONFIG.redis_queue_name, json.dumps(payload))
-                else:
-                    logger.error("Max retries exceeded; moving message to failed queue")
-                    redis_client.lpush(
-                        CONFIG.redis_failed_queue_name,
-                        json.dumps({"message": payload, "error": str(exc)}),
-                    )
 
 
 def main() -> None:
