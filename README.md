@@ -119,3 +119,15 @@ After moving from previous environment:
 5. Monitor logs for retries/timeouts in workers
 
 If all checks pass, the migration is complete and parallel queue execution is active.
+
+---
+
+## 7) Import workflow templates
+
+Workflow templates for queue-triggered document processing are available in:
+
+- `/workflows/01-queue-event-trigger.json`
+- `/workflows/02-process-document.json`
+- `/workflows/03-queue-document-processing-with-optional-api.json`
+
+See `/workflows/README.md` for usage details and payload examples.

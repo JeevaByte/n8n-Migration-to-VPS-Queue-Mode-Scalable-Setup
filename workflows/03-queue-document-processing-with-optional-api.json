@@ -1,0 +1,228 @@
+{
+  "name": "Queue Document Processing with Optional External API",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "queue-document",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "queue-webhook",
+      "name": "Queue Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "queue-document-processing"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "jobId",
+              "value": "={{ $json.body.jobId || $json.jobId || '' }}"
+            },
+            {
+              "name": "fileName",
+              "value": "={{ $json.body.document.fileName || $json.document.fileName || 'document.bin' }}"
+            }
+          ],
+          "number": [
+            {
+              "name": "sizeBytes",
+              "value": "={{ Number($json.body.document.sizeBytes || $json.document.sizeBytes || 0) }}"
+            }
+          ],
+          "boolean": [
+            {
+              "name": "useExternalApi",
+              "value": "={{ $json.body.useExternalApi || false }}"
+            }
+          ]
+        }
+      },
+      "id": "normalize-payload",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fileName = $json.fileName || 'document.bin';\nconst extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : 'unknown';\n\nreturn [{\n  json: {\n    ...$json,\n    status: 'processed',\n    processedAt: new Date().toISOString(),\n    documentType: extension\n  }\n}];"
+      },
+      "id": "process-document",
+      "name": "Process Document",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.useExternalApi }}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "if-external-api",
+      "name": "Use External API?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://example-api.internal/documents/process",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jobId\": \"{{ $json.jobId }}\",\n  \"fileName\": \"{{ $json.fileName }}\",\n  \"documentType\": \"{{ $json.documentType }}\",\n  \"processedAt\": \"{{ $json.processedAt }}\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-external-api",
+      "name": "Call External API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1280,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "merge-results",
+      "name": "Merge Result",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"completed\",\n  \"jobId\": \"{{ $json.jobId }}\",\n  \"usedExternalApi\": {{ $json.useExternalApi }}\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Respond Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Queue Event": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "Process Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Document": {
+      "main": [
+        [
+          {
+            "node": "Use External API?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use External API?": {
+      "main": [
+        [
+          {
+            "node": "Call External API",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Result",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Merge Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call External API": {
+      "main": [
+        [
+          {
+            "node": "Merge Result",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Result": {
+      "main": [
+        [
+          {
+            "node": "Respond Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
