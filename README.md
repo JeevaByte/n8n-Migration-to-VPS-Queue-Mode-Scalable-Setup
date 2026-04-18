@@ -119,3 +119,36 @@ After moving from previous environment:
 5. Monitor logs for retries/timeouts in workers
 
 If all checks pass, the migration is complete and parallel queue execution is active.
+
+---
+
+## 7) Document processing schema (SQLAlchemy + Alembic)
+
+This repository now includes a PostgreSQL-ready schema for a document processing subsystem:
+
+- `documents` table: `id`, `file_path`, `status`, `created_at`
+- `transactions` table: `id`, `document_id` (FK), `vendor`, `amount`, `date`, `category`
+
+Implemented with:
+
+- SQLAlchemy models in `document_processing/models.py`
+- Alembic config in `alembic.ini` + `alembic/`
+- Initial migration in `alembic/versions/20260418_0001_create_document_processing_schema.py`
+
+### Run migrations
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Optional override if not using alembic.ini default URL
+export DATABASE_URL="postgresql+psycopg://<user>:<password>@<host>:5432/<db>"
+
+alembic upgrade head
+```
+
+### Indexes included
+
+- `documents`: `status`, `created_at`
+- `transactions`: `document_id`, `vendor`, `date`, `category`, `(document_id, date)`
