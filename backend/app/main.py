@@ -1,8 +1,9 @@
 import logging
+import re
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from redis import Redis
 
 from app.config import settings
@@ -32,6 +33,14 @@ publisher = QueuePublisher(
 
 upload_dir = Path(settings.upload_dir)
 upload_dir.mkdir(parents=True, exist_ok=True)
+_FILENAME_SAFE_CHARS = re.compile(r"[^A-Za-z0-9._-]")
+_CHUNK_SIZE = 1024 * 1024
+
+
+def _sanitize_filename(name: str) -> str:
+    base_name = Path(name or "upload.bin").name
+    sanitized = _FILENAME_SAFE_CHARS.sub("_", base_name)
+    return sanitized or "upload.bin"
 
 
 def _publish_in_background(document_id: str, file_path: str) -> None:
@@ -60,13 +69,29 @@ async def upload_file(
     document_id: str | None = Form(default=None),
 ) -> dict[str, str]:
     resolved_document_id = document_id or str(uuid4())
-    original_name = Path(file.filename or "upload.bin").name
+    original_name = _sanitize_filename(file.filename or "upload.bin")
     stored_name = f"{resolved_document_id}_{original_name}"
-    destination = upload_dir / stored_name
+    destination = (upload_dir / stored_name).resolve()
+    if upload_dir.resolve() not in destination.parents:
+        raise HTTPException(status_code=400, detail="Invalid destination path")
 
-    content = await file.read()
-    destination.write_bytes(content)
-    await file.close()
+    size_bytes = 0
+    try:
+        with destination.open("wb") as output:
+            while True:
+                chunk = await file.read(_CHUNK_SIZE)
+                if not chunk:
+                    break
+                size_bytes += len(chunk)
+                if size_bytes > settings.max_upload_size_bytes:
+                    raise HTTPException(status_code=413, detail="Uploaded file is too large")
+                output.write(chunk)
+    except HTTPException:
+        if destination.exists():
+            destination.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
 
     file_path = str(destination)
     LOGGER.info(
@@ -75,7 +100,7 @@ async def upload_file(
             "event": "file_upload_stored",
             "document_id": resolved_document_id,
             "file_path": file_path,
-            "size_bytes": len(content),
+            "size_bytes": size_bytes,
         },
     )
 

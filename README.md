@@ -108,6 +108,7 @@ Each upload schedules Redis queue publish in the background with a payload:
 ```
 
 Queue publishing is retry-safe: duplicate retry attempts for the same `document_id + file_path` are deduplicated for `BACKEND_QUEUE_DEDUPE_TTL_SECONDS`.
+Uploads are streamed to disk and constrained by `BACKEND_MAX_UPLOAD_SIZE_BYTES` (default: 50 MB).
 
 ---
 
