@@ -63,6 +63,25 @@ def upgrade() -> None:
         ["processing_completed_at"],
         unique=False,
     )
+    op.execute(
+        """
+        CREATE FUNCTION set_documents_updated_at()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.updated_at = now();
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+    op.execute(
+        """
+        CREATE TRIGGER trg_documents_updated_at
+        BEFORE UPDATE ON documents
+        FOR EACH ROW
+        EXECUTE FUNCTION set_documents_updated_at();
+        """
+    )
 
     op.create_table(
         "transactions",
@@ -74,6 +93,7 @@ def upgrade() -> None:
         sa.Column("category", sa.String(length=120), nullable=True),
         sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
+        sa.CheckConstraint("amount >= 0", name="ck_transactions_amount_non_negative"),
     )
     op.create_index("ix_transactions_document_id", "transactions", ["document_id"], unique=False)
     op.create_index("ix_transactions_vendor", "transactions", ["vendor"], unique=False)
@@ -100,6 +120,8 @@ def downgrade() -> None:
     op.drop_index("ix_documents_processing_completed_at", table_name="documents")
     op.drop_index("ix_documents_processing_started_at", table_name="documents")
     op.drop_index("ix_documents_updated_at", table_name="documents")
+    op.execute("DROP TRIGGER IF EXISTS trg_documents_updated_at ON documents")
+    op.execute("DROP FUNCTION IF EXISTS set_documents_updated_at")
     op.drop_table("documents")
 
     bind = op.get_bind()

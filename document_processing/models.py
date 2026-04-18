@@ -6,7 +6,18 @@ import enum
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Index, Numeric, String, Text, func
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -75,6 +86,7 @@ class Transaction(Base):
         Index("ix_transactions_date", "date"),
         Index("ix_transactions_category", "category"),
         Index("ix_transactions_document_date", "document_id", "date"),
+        CheckConstraint("amount >= 0", name="ck_transactions_amount_non_negative"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

@@ -132,6 +132,8 @@ This repository now includes a PostgreSQL-ready schema for a document processing
   - diagnostics/storage: `error_message`, `error_details` (JSONB), `ocr_output` (JSONB)
 - `transactions` table: `id`, `document_id` (FK), `vendor`, `amount`, `date`, `category`, `metadata` (JSONB)
 
+`updated_at` is automatically refreshed on `documents` row updates (ORM `onupdate` + PostgreSQL trigger), and `transactions.amount` is constrained to non-negative values.
+
 Implemented with:
 
 - SQLAlchemy models in `document_processing/models.py`
