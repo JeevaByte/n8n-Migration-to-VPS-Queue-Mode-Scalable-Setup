@@ -77,13 +77,33 @@ Check service health:
 docker compose ps
 docker compose logs -f n8n-main
 docker compose logs -f n8n-worker
+curl -fsS https://<your-domain>/health
 ```
 
 Queue mode confirmation in logs should include queue-based execution startup and workers polling jobs.
 
 ---
 
-## 4) Webhook URL migration checklist
+## 4) Observability
+
+This stack is configured with structured JSON logging and health/metrics endpoints.
+
+- **Structured logs (JSON):** `N8N_LOG_FORMAT=json`
+- **Log level:** `N8N_LOG_LEVEL=debug`
+- **Core log scopes:** `N8N_LOG_SCOPES=scaling,redis,concurrency,waiting-executions,task-runner,task-runner-js,task-runner-py`
+- **Health endpoint:** `GET /health`
+- **Optional Prometheus metrics endpoint:** `GET /metrics` (enabled with `N8N_METRICS=true`)
+
+Expected observability coverage:
+
+- API request visibility (via enabled API metrics labels and debug logging)
+- Error logging
+- Queue event logging and queue metrics
+- Worker processing activity (task-runner and scaling scopes)
+
+---
+
+## 5) Webhook URL migration checklist
 
 After moving from previous environment:
 
@@ -99,7 +119,7 @@ After moving from previous environment:
 
 ---
 
-## 5) Performance and stability recommendations
+## 6) Performance and stability recommendations
 
 - Keep `EXECUTIONS_MODE=queue` on all n8n services
 - Increase workers based on CPU/RAM (`--scale n8n-worker=<N>`)
@@ -110,7 +130,7 @@ After moving from previous environment:
 
 ---
 
-## 6) Validate all workflows post-migration
+## 7) Validate all workflows post-migration
 
 1. Run a representative set of active workflows (cron, webhook, and API-triggered)
 2. Confirm successful and failed executions are visible
